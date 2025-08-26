@@ -45,6 +45,7 @@ export class EventHook implements EventHookI {
   }
 
   async dispatchEvent(eventName: string, ...args: any[]): Promise<any[]> {
+    const start = performance.now();
     if (!this.system) {
       throw new Error("Event hook is not initialized");
     }
@@ -66,7 +67,16 @@ export class EventHook implements EventHookI {
                 // Queue the promise
                 promises.push((async () => {
                   try {
-                    return await plug.invoke(name, args);
+                    const now = performance.now();
+                    const result = await plug.invoke(name, args);
+                    if (eventName === "page:index") {
+                      console.log(
+                        `Done with ${functionDef.path} in ${
+                          performance.now() - now
+                        }`,
+                      );
+                    }
+                    return result;
                   } catch (e: any) {
                     console.error(
                       `Error dispatching event ${eventName} to ${plug.name}.${name}: ${e.message}`,
@@ -116,10 +126,18 @@ export class EventHook implements EventHookI {
     }
 
     // Wait for all promises to resolve
-    return (await Promise.allSettled(promises))
+    const results = (await Promise.allSettled(promises))
       .filter((result) => result.status === "fulfilled")
       .map((result) => result.value)
       .filter((result) => result != null); // This keeps non-null/undefined results
+
+    if (eventName === "page:index") {
+      console.log(
+        `Completed indexing (${args[0].name}) in ${performance.now() - start}`,
+      );
+    }
+
+    return results;
   }
 
   apply(system: System<EventHookT>): void {
